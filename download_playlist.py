@@ -54,7 +54,8 @@ def main():
     output_path = "playlist"
     Path(output_path).mkdir(exist_ok=True)
     
-    # Read the song list
+    # Read the song list *CHANGE HERE*
+    # e.g. create your own .txt file
     with open('song.txt', 'r', encoding='utf-8') as f:
         reader = csv.reader(f)
         next(reader)  # Skip header
