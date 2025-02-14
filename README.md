@@ -1,18 +1,40 @@
 # Song Research Tool
 
-A Python-based tool for analyzing and managing song playlists. This tool helps users research and organize their music collections efficiently.
+A Python-based tool for analyzing and managing song playlists. This tool helps users research and organize their music collections efficiently, with support for OCR extraction from PDFs and images.
 
 ## Features
 
-- Playlist management
-- Song analysis
-- Data export capabilities
+- Playlist management and download
+- OCR song list extraction from PDFs/images
+- Automatic song data structuring
+- CSV export capabilities
 
 ## Setup
 
 1. Clone the repository
 2. Install dependencies: `pip install -r requirements.txt`
-3. Run the main script: `python download_playlist.py`
+3. Set up environment variables:
+   ```bash
+   # Create .env file
+   echo "GOOGLE_AI_API_KEY=your_api_key_here" > .env
+   ```
+
+## Usage
+
+### Download Songs
+```bash
+python download_playlist.py
+```
+
+### Extract Songs from PDF/Image
+```bash
+python src/song_research/ocr_extract.py input.pdf --output song.txt
+```
+
+The OCR feature will:
+1. Process the input file using Gemini 2.0 Flash API
+2. Extract song titles and artists
+3. Generate a compatible song list file
 
 ## Learning: Git Authentication and Troubleshooting
 
@@ -68,6 +90,20 @@ git push origin main
    - Fetch first to see remote changes
    - Use rebase to maintain clean history
    - Then push your changes
+
+## Project Structure
+
+```
+song-research-tool/
+├── src/
+│   └── song_research/
+│       ├── core/         # Core functionality
+│       ├── ocr/          # OCR integration
+│       ├── models/       # Data models
+│       └── utils/        # Utility functions
+├── download_playlist.py  # Song download script
+└── requirements.txt     # Project dependencies
+```
 
 ## Contributing
 
