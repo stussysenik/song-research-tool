@@ -1,79 +1,61 @@
 #!/usr/bin/env python3
 import csv
 import os
-import sys
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import yt_dlp
+import ssl
 
-def sanitize_filename(filename):
-    """Remove invalid characters from filename."""
-    return "".join(c for c in filename if c.isalnum() or c in (' ', '-', '_')).strip()
+# Create unverified SSL context
+ssl._create_default_https_context = ssl._create_unverified_context
 
-def create_download_options(output_path):
-    """Create yt-dlp options with quality preferences."""
-    return {
-        'format': 'bestaudio/best',
+def download_songs(songs, output_dir="playlist"):
+    """Download songs from YouTube."""
+    Path(output_dir).mkdir(exist_ok=True)
+    
+    ydl_opts = {
+        'format': 'bestaudio',
+        'outtmpl': '%(title)s.%(ext)s',
+        'paths': {'home': output_dir},
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
             'preferredquality': '320',
-        }],
-        'outtmpl': os.path.join(output_path, '%(title)s.%(ext)s'),
-        'quiet': True,
-        'no_warnings': True,
-        'extract_audio': True,
-        'audio_quality': 0,  # Highest quality
-        'prefer_ffmpeg': True,
-        'keepvideo': False,
+        }]
     }
-
-def download_song(song_info, output_path):
-    """Download a single song using yt-dlp."""
-    title, artist = song_info
-    search_query = f"{title} {artist} audio"
     
-    # Create sanitized filename
-    safe_filename = sanitize_filename(f"{title} - {artist}")
-    
-    options = create_download_options(output_path)
-    options['outtmpl'] = os.path.join(output_path, safe_filename + '.%(ext)s')
-    
-    try:
-        with yt_dlp.YoutubeDL(options) as ydl:
-            # Search for the video
-            result = ydl.extract_info(f"ytsearch1:{search_query}", download=True)
-            print(f"✓ Downloaded: {title} - {artist}")
-            return True
-    except Exception as e:
-        print(f"✗ Failed to download {title} - {artist}: {str(e)}")
-        return False
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        for title, artist in songs:
+            try:
+                print(f"\nDownloading: {artist} - {title}")
+                ydl.download([f"ytsearch1:{artist} {title} audio"])
+            except Exception as e:
+                print(f"Failed: {str(e)}")
+                continue
 
 def main():
-    # Create playlist directory if it doesn't exist
-    output_path = "playlist"
-    Path(output_path).mkdir(exist_ok=True)
-    
-    # Read the song list *CHANGE HERE*
-    # e.g. create your own .txt file
-    with open('song.txt', 'r', encoding='utf-8') as f:
-        reader = csv.reader(f)
-        next(reader)  # Skip header
-        songs = list(reader)
-    
-    print(f"Found {len(songs)} songs to download...")
-    print("Starting downloads (this may take a while)...")
-    
-    # Download songs in parallel
-    with ThreadPoolExecutor(max_workers=3) as executor:
-        futures = [executor.submit(download_song, song, output_path) for song in songs]
+    try:
+        # Read song list
+        with open('song.txt', 'r', encoding='utf-8') as f:
+            reader = csv.reader(f)
+            next(reader)  # Skip header
+            songs = []
+            for row in reader:
+                if len(row) >= 2:
+                    songs.append((row[0].strip(), row[1].strip()))
+                elif len(row) == 1 and ' - ' in row[0]:
+                    title, artist = row[0].split(' - ', 1)
+                    songs.append((title.strip(), artist.strip()))
         
-        # Wait for all downloads to complete
-        successful = sum(1 for future in futures if future.result())
-    
-    print(f"\nDownload complete!")
-    print(f"Successfully downloaded: {successful}/{len(songs)} songs")
-    print(f"Files saved in: {os.path.abspath(output_path)}")
+        if not songs:
+            print("No valid songs found in song.txt")
+            return
+        
+        print(f"Found {len(songs)} songs to download...")
+        download_songs(songs)
+        print("\nDownload complete!")
+        
+    except Exception as e:
+        print(f"Error: {str(e)}")
 
 if __name__ == "__main__":
     main() 
