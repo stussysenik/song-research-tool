@@ -1,6 +1,6 @@
 import os
 from typing import Optional
-from google.cloud import aiplatform
+import google.generativeai as genai
 from ..models.song import SongList, Song
 
 class GeminiExtractor:
@@ -10,10 +10,10 @@ class GeminiExtractor:
         """Initialize the extractor with API credentials."""
         self.api_key = api_key or os.getenv("GOOGLE_AI_API_KEY")
         if not self.api_key:
-            raise ValueError("Google AI API key is required")
+            raise ValueError("Google API key is required")
         
-        # Initialize Gemini client
-        aiplatform.init(project=self.api_key)
+        # Configure the Gemini API
+        genai.configure(api_key=self.api_key)
         
     def process_file(self, file_path: str) -> SongList:
         """Process a file and extract song information.
@@ -36,33 +36,40 @@ class GeminiExtractor:
         song_list = SongList(source_file=os.path.basename(file_path))
         
         try:
-            # Upload file to Gemini
+            # Load the image
             with open(file_path, 'rb') as f:
-                file_content = f.read()
+                image_data = f.read()
             
             # Create Gemini model
-            model = aiplatform.Model("gemini-2.0-flash")
+            model = genai.GenerativeModel('gemini-1.5-flash')
             
             # Process with Gemini
-            response = model.predict(
-                instances=[{
-                    "text": "Extract song list from document",
-                    "file": file_content
-                }],
-                parameters={
-                    "response_format": "json"
-                }
-            )
+            response = model.generate_content([
+                "Extract song titles and artists from this image. Return the results in JSON format with 'songs' array containing objects with 'title' and 'artist' fields.",
+                {"mime_type": "image/jpeg", "data": image_data}
+            ])
             
             # Parse response into SongList
-            for item in response.predictions:
-                if 'title' in item and 'artist' in item:
-                    song = Song(
-                        title=item['title'],
-                        artist=item['artist'],
-                        source='OCR'
-                    )
-                    song_list.songs.append(song)
+            try:
+                # The response might be in text format, try to extract JSON part
+                import json
+                import re
+                
+                # Try to find JSON in the response
+                json_match = re.search(r'\{.*\}', response.text, re.DOTALL)
+                if json_match:
+                    data = json.loads(json_match.group())
+                    if 'songs' in data:
+                        for song in data['songs']:
+                            if 'title' in song and 'artist' in song:
+                                song_obj = Song(
+                                    title=song['title'],
+                                    artist=song['artist'],
+                                    source='OCR'
+                                )
+                                song_list.songs.append(song_obj)
+            except Exception as parse_error:
+                raise RuntimeError(f"Failed to parse Gemini response: {str(parse_error)}")
             
             return song_list
             
@@ -81,5 +88,5 @@ class GeminiExtractor:
         # Approximate token count (rough estimate)
         estimated_tokens = file_size / 4  # Rough estimate of bytes to tokens
         
-        # Gemini 2.0 Flash limit is 1M tokens
-        return estimated_tokens <= 1_000_000 
+        # Gemini Pro Vision has a more generous limit
+        return estimated_tokens <= 4_000_000  # 4MB limit 

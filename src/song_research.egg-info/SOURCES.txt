@@ -2,6 +2,7 @@ LICENSE
 README.md
 setup.py
 src/song_research/__init__.py
+src/song_research/api.py
 src/song_research/ocr_extract.py
 src/song_research.egg-info/PKG-INFO
 src/song_research.egg-info/SOURCES.txt
@@ -9,6 +10,7 @@ src/song_research.egg-info/dependency_links.txt
 src/song_research.egg-info/requires.txt
 src/song_research.egg-info/top_level.txt
 src/song_research/core/__init__.py
+src/song_research/core/downloader.py
 src/song_research/models/__init__.py
 src/song_research/models/song.py
 src/song_research/ocr/__init__.py
