@@ -1,3 +1,9 @@
+TO FIX:
+- bulk processing
+- accurate soundcloud text matching (maybe too much)
+- i had a beautiful Gemini processing pipeline
+- dashboard with downloads
+
 # How to run:
 
 ## Terminal 1: Start the backend (Python)
