@@ -1,3 +1,4 @@
+# Python dependencies
 yt-dlp>=2025.1.26
 python-dotenv>=1.0.0
 pydantic>=2.6.1

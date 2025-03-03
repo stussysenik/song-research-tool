@@ -9,34 +9,64 @@ export async function POST(req: NextRequest) {
   
   try {
     const body = await req.json()
-    const songs: Song[] = Array.isArray(body) ? body : [body]
     
-    console.log("Download request:", {
-      songCount: songs.length,
-      songs: songs.map(s => `${s.title} - ${s.artist}`)
-    })
+    // Check if this is a playlist or single song
+    if (body.songs) {
+      // For playlist functionality
+      console.log(`Download request for playlist with ${body.songs.length} songs`)
+      
+      const response = await fetch(`${PYTHON_API_URL}/api/download/playlist`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        },
+        body: JSON.stringify({ 
+          songs: body.songs // Pass the songs array directly
+        }),
+      })
+      
+      console.log("Python backend response status:", response.status)
+      const data = await response.json()
+      
+      if (!response.ok) {
+        console.error("Python backend error:", data)
+        throw new Error(data.detail || "Failed to download playlist")
+      }
+      
+      console.log("Download response:", data)
+      return NextResponse.json(data)
+      
+    } else {
+      // For single song functionality
+      const songs: Song[] = Array.isArray(body) ? body : [body]
+      
+      console.log("Download request:", {
+        songCount: songs.length,
+        songs: songs.map(s => `${s.title} - ${s.artist}`)
+      })
 
-    // Forward to Python backend
-    const response = await fetch(`${PYTHON_API_URL}/api/download-song`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-      },
-      body: JSON.stringify(songs),
-    })
+      // Forward to Python backend
+      const response = await fetch(`${PYTHON_API_URL}/api/download/song`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        },
+        body: JSON.stringify(songs[0]), // Send first song only
+      })
 
-    console.log("Python backend response status:", response.status)
+      console.log("Python backend response status:", response.status)
+      const data = await response.json()
+      
+      if (!response.ok) {
+        console.error("Python backend error:", data)
+        throw new Error(data.detail || "Failed to download song")
+      }
 
-    const data = await response.json()
-    
-    if (!response.ok) {
-      console.error("Python backend error:", data)
-      throw new Error(data.detail || "Failed to download song(s)")
+      console.log("Download response:", data)
+      return NextResponse.json(data)
     }
-
-    console.log("Download response:", data)
-    return NextResponse.json(data)
     
   } catch (error) {
     console.error("Error downloading song(s):", error)

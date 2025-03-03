@@ -90,3 +90,63 @@ class GeminiExtractor:
         
         # Gemini Pro Vision has a more generous limit
         return estimated_tokens <= 4_000_000  # 4MB limit 
+
+    def extract_soundcloud_links(self, text: str) -> list:
+        """
+        Specialized method to extract SoundCloud songs from text.
+        
+        Args:
+            text: Text that potentially contains SoundCloud links or song references
+            
+        Returns:
+            List of Song objects
+        """
+        import re
+        
+        # Initialize the model with a SoundCloud-specific prompt
+        model = genai.GenerativeModel('gemini-pro')
+        
+        # Create a prompt that focuses on SoundCloud content
+        prompt = f"""
+        Extract all songs from this SoundCloud content. The text below may contain song information
+        from SoundCloud pages. Please identify all songs with their titles and artists.
+        
+        Text to analyze:
+        {text}
+        
+        For each song, provide the exact song title and artist name in this exact format:
+        Title: [song title]
+        Artist: [artist name]
+        
+        If a SoundCloud URL is present, extract the song title and artist from the URL pattern.
+        SoundCloud URLs typically follow the format: soundcloud.com/[artist-name]/[song-title]
+        """
+        
+        # Get response from Gemini
+        response = model.generate_content(prompt)
+        extraction_result = response.text
+        
+        # Process the response to extract songs
+        songs = []
+        
+        # First look for SoundCloud URLs
+        soundcloud_pattern = r'soundcloud\.com/([^/]+)/([^/\s]+)'
+        url_matches = re.finditer(soundcloud_pattern, text)
+        
+        for match in url_matches:
+            artist = match.group(1).replace('-', ' ').title()
+            title = match.group(2).replace('-', ' ').title()
+            songs.append(Song(title=title, artist=artist))
+        
+        # Then look for Title/Artist pairs in the Gemini extraction
+        title_pattern = r'Title: (.*?)\nArtist: (.*?)(?:\n|$)'
+        title_matches = re.finditer(title_pattern, extraction_result)
+        
+        for match in title_matches:
+            title = match.group(1).strip()
+            artist = match.group(2).strip()
+            # Only add if we don't already have this song
+            if not any(s.title.lower() == title.lower() and s.artist.lower() == artist.lower() for s in songs):
+                songs.append(Song(title=title, artist=artist))
+        
+        return songs 

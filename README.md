@@ -1,4 +1,45 @@
-# Valentine's Playlist Generator
+# How to run:
+
+## Terminal 1: Start the backend (Python)
+```bash
+cd ~/Desktop/school/dev\ playground/DJ\ tools/valentines-playlist
+export PYTHONPATH="$PWD"
+python3 src/run.py
+```
+
+## Terminal 2: Start the frontend (Next.js)
+```bash
+cd ~/Desktop/school/dev\ playground/DJ\ tools/valentines-playlist/song-research-ui
+bun dev
+```
+
+## Handling Port Conflicts
+
+If you see the error: `ERROR: [Errno 98] error while attempting to bind on address ('127.0.0.1', 8000): address already in use`, try one of these solutions:
+
+### Option 1: Use a different port
+```bash
+# Start the backend on port 8001 instead of 8000
+python3 src/run.py --port 8001
+```
+
+### Option 2: Find and kill the process using port 8000
+```bash
+# Find the process using port 8000
+sudo lsof -i :8000
+
+# Kill the process (replace PID with the process ID from the output above)
+kill PID
+
+# Then try running again
+python3 src/run.py
+```
+
+### Option 3: Restart your computer
+This will terminate all running processes and free up the port.
+
+
+# Documentation: Valentine's Playlist Generator
 
 A full-stack application for extracting song lists from images and downloading them as MP3s. Features both a web interface and CLI support.
 
@@ -60,11 +101,11 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 3. Start the services:
 ```bash
 # Backend
-python src/run.py
+python3 src/run.py
 
 # Frontend
 cd song-research-ui
-npm run dev
+bun dev
 ```
 
 ## Usage
@@ -106,6 +147,7 @@ python src/run.py process songs.txt
   - Next.js
   - React
   - Tailwind CSS
+  - Bun (for development)
 
 ## Notes
 - Requires a valid Google Gemini API key

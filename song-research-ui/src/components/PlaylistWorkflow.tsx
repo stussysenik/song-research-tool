@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import DownloadManager from './DownloadManager';
+import { toast } from 'react-hot-toast';
 
 interface Song {
     title: string;
@@ -13,6 +14,7 @@ export default function PlaylistWorkflow() {
     const [songList, setSongList] = useState<string>('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [files, setFiles] = useState<File[] | null>(null);
 
     const checkBackendHealth = async () => {
         try {
@@ -28,147 +30,132 @@ export default function PlaylistWorkflow() {
     };
 
     const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (!file) return;
-
+        const files = event.target.files;
+        if (!files || files.length === 0) return;
+        
+        setLoading(true);
+        setError(null);
+        setFiles(Array.from(files));
+        
         try {
-            setLoading(true);
-            setError(null);
+            // Create a FormData object with all selected files
+            const formData = new FormData();
+            Array.from(files).forEach((file) => {
+                // Use 'files' as the parameter name for all files to match FastAPI expectations
+                formData.append('files', file);
+            });
             
-            // Check backend health first
-            const isHealthy = await checkBackendHealth();
-            if (!isHealthy) {
-                throw new Error(
-                    'Cannot connect to backend server. Please ensure it is running on http://localhost:8000 and try again.'
-                );
-            }
-
-            console.log('Processing file:', file.name, 'Type:', file.type);
-
-            const fileName = file.name.toLowerCase();
+            // Display feedback about bulk processing
+            toast({
+                title: "Processing Files",
+                description: `Processing ${files.length} files. This may take some time.`,
+            });
             
-            // Handle different file types
-            if (fileName.endsWith('.jpg') || fileName.endsWith('.jpeg') || 
-                fileName.endsWith('.png') || fileName.endsWith('.pdf')) {
-                // Image/PDF path - use OCR
-                console.log('Using OCR for:', fileName);
-                const formData = new FormData();
-                formData.append('file', file);
-
-                try {
-                    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/extract`, {
-                        method: 'POST',
-                        body: formData,
-                        headers: {
-                            // Don't set Content-Type header - browser will set it with boundary
-                            'Accept': 'application/json',
-                        },
-                    });
-
-                    if (!response.ok) {
-                        const errorText = await response.text();
-                        console.error('Server Error:', response.status, errorText);
-                        
-                        // Try to parse error as JSON
-                        try {
-                            const errorJson = JSON.parse(errorText);
-                            throw new Error(errorJson.detail || 'Failed to process image');
-                        } catch {
-                            throw new Error(errorText || `Server error: ${response.status}`);
-                        }
-                    }
-
-                    const data = await response.json();
-                    console.log('OCR Results:', data);
-
-                    if (!data.songs || data.songs.length === 0) {
-                        throw new Error('No songs could be extracted from the image');
-                    }
-
-                    // Convert to CSV format
-                    const csvContent = 'Title,Artist\n' + 
-                        data.songs.map((song: Song) => `${song.title},${song.artist}`).join('\n');
-                    
-                    setSongList(csvContent);
-                    setStep('download');
-                    return;
-                } catch (error) {
-                    console.error('Error processing image:', error);
-                    setError(error instanceof Error ? error.message : 'Failed to process image');
-                }
+            // Call the bulk extraction endpoint
+            const response = await fetch('/api/extract-songs-bulk', {
+                method: 'POST',
+                body: formData,
+            });
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to process files');
             }
-
-            // Text/CSV path
-            if (fileName.endsWith('.txt') || fileName.endsWith('.csv')) {
-                const content = await file.text();
-                console.log('Parsing text file:', content.slice(0, 100) + '...');
-
-                // Validate format
-                const lines = content.trim().split('\n');
-                if (lines.length === 0) {
-                    throw new Error('File is empty');
-                }
-
-                const isValid = lines.every(line => {
-                    return line.includes(',') || line.includes(' - ');
+            
+            const data = await response.json();
+            
+            // Handle partial failures
+            if (data.errors && data.errors.length > 0) {
+                toast({
+                    title: "Some files failed",
+                    description: `${data.errors.length} out of ${files.length} files couldn't be processed.`,
+                    variant: "destructive",
                 });
-
-                if (!isValid) {
-                    throw new Error('Invalid format. Expected: "Title,Artist" or "Title - Artist" on each line');
-                }
-
-                setSongList(content);
-                setStep('download');
-                return;
             }
-
-            throw new Error('Unsupported file type. Please use image, PDF, TXT, or CSV files.');
-
+            
+            // Proceed with the extracted songs
+            if (data.songs && data.songs.length > 0) {
+                // Format songs for the DownloadManager
+                // Convert the songs array to CSV format: "Title,Artist\n..."
+                const formattedSongs = data.songs.map(song => 
+                    `${song.title},${song.artist}`
+                ).join('\n');
+                
+                setSongList(formattedSongs);
+                setStep('download');
+                toast({
+                    title: "Processing Complete",
+                    description: `Successfully extracted ${data.songs.length} songs.`,
+                });
+            } else {
+                throw new Error('No songs could be extracted from the provided files');
+            }
         } catch (err) {
-            console.error('File processing error:', err);
-            setError(err instanceof Error ? err.message : 'Failed to process file');
+            setError(err instanceof Error ? err.message : 'An error occurred');
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <div className="space-y-6">
-            {step === 'upload' ? (
-                <div className="space-y-4">
-                    <div className="p-4 bg-violet-50 rounded-lg">
-                        <p className="text-sm text-violet-700">
-                            Upload your playlist in any of these formats:
-                        </p>
-                        <ul className="mt-2 text-sm text-violet-600 list-disc list-inside">
-                            <li>Image files (.jpg, .jpeg, .png)</li>
-                            <li>PDF documents (.pdf)</li>
-                            <li>Text files (.txt)</li>
-                            <li>CSV files (.csv)</li>
+        <div>
+            {step === 'upload' && (
+                <div className="space-y-6">
+                    <div className="bg-blue-50 text-text-primary p-6 rounded-lg border border-blue-100 transition-all hover:shadow-md">
+                        <h2 className="text-lg font-medium mb-3 text-primary">Upload your playlist in any of these formats:</h2>
+                        <ul className="space-y-2 ml-5 text-text-secondary">
+                            <li className="flex items-center gap-2">
+                                <span className="text-accent">•</span> Image files (.jpg, .jpeg, .png)
+                            </li>
+                            <li className="flex items-center gap-2">
+                                <span className="text-accent">•</span> PDF documents (.pdf)
+                            </li>
+                            <li className="flex items-center gap-2">
+                                <span className="text-accent">•</span> Text files (.txt)
+                            </li>
+                            <li className="flex items-center gap-2">
+                                <span className="text-accent">•</span> CSV files (.csv)
+                            </li>
                         </ul>
-                        <p className="mt-2 text-xs text-violet-500">
-                            For text/CSV files, use format: "Title,Artist" or "Title - Artist"
-                        </p>
+                        <p className="text-sm mt-3 text-text-secondary italic">For text/CSV files, use format: "Title,Artist" or "Title - Artist"</p>
                     </div>
-                    <input
-                        type="file"
-                        accept=".jpg,.jpeg,.png,.pdf,.txt,.csv"
-                        onChange={handleFileUpload}
-                        disabled={loading}
-                        className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100"
-                    />
+                    
+                    <div className="mt-6">
+                        <button 
+                            onClick={() => document.getElementById('file-upload')?.click()}
+                            className="px-6 py-3 bg-primary text-white rounded-md hover:bg-primary-hover transition-all duration-200 font-medium"
+                        >
+                            Choose Files
+                        </button>
+                        <input
+                            id="file-upload"
+                            type="file"
+                            className="hidden"
+                            multiple
+                            onChange={handleFileUpload}
+                            accept=".jpg,.jpeg,.png,.pdf,.txt,.csv"
+                        />
+                        <span className="ml-3 text-text-secondary">{files?.length ? `${files.length} file(s) selected` : 'No file chosen'}</span>
+                    </div>
+
                     {loading && (
-                        <div className="animate-pulse">
-                            <p className="text-violet-500">Processing file...</p>
-                        </div>
-                    )}
-                    {error && (
-                        <div className="text-red-600 bg-red-50 p-3 rounded-lg">
-                            {error}
+                        <div className="flex items-center justify-center py-8 animate-fade-in">
+                            <div className="relative">
+                                <div className="h-16 w-16 rounded-full border-4 border-primary/30 border-t-primary animate-spin"></div>
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <span className="text-xs font-medium text-primary-hover">OCR</span>
+                                </div>
+                            </div>
+                            <div className="ml-4">
+                                <p className="font-medium text-primary">Processing your files</p>
+                                <p className="text-sm text-text-secondary">Using Gemini Vision API to extract songs...</p>
+                            </div>
                         </div>
                     )}
                 </div>
-            ) : (
+            )}
+            
+            {step === 'download' && (
                 <div>
                     <button
                         onClick={() => setStep('upload')}
