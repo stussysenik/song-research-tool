@@ -1,8 +1,0 @@
-# Python dependencies
-yt-dlp>=2025.1.26
-python-dotenv>=1.0.0
-pydantic>=2.6.1
-fastapi>=0.109.2
-uvicorn>=0.27.1
-python-multipart>=0.0.9
-google-generativeai>=0.3.2 

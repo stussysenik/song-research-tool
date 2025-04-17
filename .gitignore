@@ -29,6 +29,10 @@ var/
 .venv
 venv/
 ENV/
+# Backend specific ignores
+backend/.venv/
+backend/venv/
+backend/ENV/
 
 # IDE
 .idea/
