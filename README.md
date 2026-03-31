@@ -2,6 +2,9 @@
 
 # Song Research Tool
 
+![Demo](demo.gif)
+
+
 DJ song tool utility for experimental purposes
 
 ![Python](https://img.shields.io/badge/Python-3776AB?style=flat-square&logo=python&logoColor=white)
